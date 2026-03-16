@@ -1,12 +1,9 @@
-ARG COOLIFY_URL
-ARG COOLIFY_FQDN
-
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY frontend/vite.config.ts tsconfig*.json ./
 COPY frontend/index.html ./
