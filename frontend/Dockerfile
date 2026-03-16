@@ -1,3 +1,6 @@
+ARG COOLIFY_URL
+ARG COOLIFY_FQDN
+
 FROM node:20-alpine AS builder
 
 WORKDIR /app

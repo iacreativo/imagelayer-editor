@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "5173:80"
+      - "80:80"
     environment:
       - VITE_API_URL=/api
     volumes:
@@ -17,12 +17,6 @@ services:
     networks:
       - editor-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   backend:
     build:
@@ -33,21 +27,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - RUNNINGHUB_API_KEY=${RUNNINGHUB_API_KEY}
-      - RUNNINGHUB_BASE_URL=${RUNNINGHUB_BASE_URL}
-      - RUNNINGHUB_ENDPOINT=${RUNNINGHUB_ENDPOINT}
-      - RUNNINGHUB_WORKFLOW_ID=${RUNNINGHUB_WORKFLOW_ID}
     volumes:
       - backend_uploads:/app/uploads
     networks:
       - editor-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4000/api/images"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
 
 networks:
   editor-network:
