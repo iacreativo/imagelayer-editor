@@ -4,11 +4,11 @@ WORKDIR /app
 
 RUN apk add --no-cache tzdata
 
-COPY backend/package*.json ./
+COPY package*.json ./
 RUN npm install
 
-COPY backend/tsconfig.json ./
-COPY backend/src ./src
+COPY tsconfig.json ./
+COPY src ./src
 
 RUN npm run build
 
