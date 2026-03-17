@@ -61,11 +61,12 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
     timeout: 30000
   })
 
-  // Log raw response for debugging if it's not a success code 0
+  // Check for error codes. Only throw if it's a clear error (non-zero value)
   const code = response.data.code ?? response.data.errorCode
   const msg = response.data.msg ?? response.data.message ?? response.data.errorMessage
 
-  if (code !== 0 && code !== undefined) {
+  // Only consider it an error if 'code' is present and not 0, "0", or falsy like null/undefined/""
+  if (code !== undefined && code !== null && code !== 0 && code !== "0" && code !== "") {
     console.log('RunningHub Raw Error Response:', JSON.stringify(response.data, null, 2))
     throw new Error(`RunningHub API error (${code}): ${msg || 'No message provided'}`)
   }
@@ -73,11 +74,12 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
   const taskId = response.data.data?.taskId ?? response.data.taskId
   if (!taskId) {
     console.log('RunningHub Missing TaskId Response:', JSON.stringify(response.data, null, 2))
-    throw new Error('No taskId returned from RunningHub API')
+    throw new Error('No taskId returned from RunningHub API (Success but no ID)')
   }
 
   return taskId
 }
+
 
 
 
@@ -99,12 +101,13 @@ const pollTaskStatus = async (taskId: string): Promise<string> => {
     const code = response.data.code ?? response.data.errorCode
     const msg = response.data.msg ?? response.data.message ?? response.data.errorMessage
 
-    if (code !== 0 && code !== undefined) {
+    if (code !== undefined && code !== null && code !== 0 && code !== "0" && code !== "") {
       throw new Error(`RunningHub status error (${code}): ${msg || 'No message provided'}`)
     }
 
     const taskData = response.data.data ?? response.data
     const status = taskData?.status
+
 
 
     if (status === 'SUCCESS' || status === 'success') {
