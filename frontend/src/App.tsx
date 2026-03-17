@@ -412,10 +412,11 @@ const EditorCanvas = ({
   const stageRef = useRef<Konva.Stage>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   
-  const [size, setSize] = useState({ width: canvasWidth, height: canvasHeight })
-  const [scale, setScale] = useState(1)
+  const [size, setSize] = useState({ width: 800, height: 600 })
+  const [scale, setScale] = useState(0.1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
+  const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(null)
   
   const [activeTool, setActiveTool] = useState<Tool>('select')
@@ -431,9 +432,22 @@ const EditorCanvas = ({
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth
+        const containerHeight = containerRef.current.clientHeight
+        
+        const scaleX = (containerWidth - 40) / canvasWidth
+        const scaleY = (containerHeight - 40) / canvasHeight
+        const initialScale = Math.min(scaleX, scaleY, 1)
+        
         setSize({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
+          width: containerWidth,
+          height: containerHeight
+        })
+        
+        setScale(initialScale)
+        setPosition({
+          x: (containerWidth - canvasWidth * initialScale) / 2,
+          y: (containerHeight - canvasHeight * initialScale) / 2
         })
       }
     }
@@ -441,6 +455,30 @@ const EditorCanvas = ({
     updateSize()
     window.addEventListener('resize', updateSize)
     return () => window.removeEventListener('resize', updateSize)
+  }, [canvasWidth, canvasHeight])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        setIsSpacePressed(true)
+      }
+    }
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false)
+        setIsPanning(false)
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
   }, [])
 
   const sortedLayers = [...layers].sort((a, b) => {
@@ -455,37 +493,40 @@ const EditorCanvas = ({
   })
 
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
-    if (activeTool === 'zoom') {
-      e.evt.preventDefault()
-      const stage = stageRef.current
-      if (!stage) return
+    e.evt.preventDefault()
+    const stage = stageRef.current
+    if (!stage) return
 
-      const oldScale = scale
-      const pointer = stage.getPointerPosition()
-      if (!pointer) return
+    const oldScale = scale
+    const pointer = stage.getPointerPosition()
+    if (!pointer) return
 
-      const scaleBy = 1.1
-      const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy
-      const clampedScale = Math.max(0.1, Math.min(5, newScale))
+    const scaleBy = 1.1
+    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy
+    const clampedScale = Math.max(0.01, Math.min(10, newScale))
 
-      const mousePointTo = {
-        x: (pointer.x - position.x) / oldScale,
-        y: (pointer.y - position.y) / oldScale,
-      }
-
-      const newPos = {
-        x: pointer.x - mousePointTo.x * clampedScale,
-        y: pointer.y - mousePointTo.y * clampedScale,
-      }
-
-      setScale(clampedScale)
-      setPosition(newPos)
+    const mousePointTo = {
+      x: (pointer.x - position.x) / oldScale,
+      y: (pointer.y - position.y) / oldScale,
     }
-  }, [scale, position, activeTool])
+
+    const newPos = {
+      x: pointer.x - mousePointTo.x * clampedScale,
+      y: pointer.y - mousePointTo.y * clampedScale,
+    }
+
+    setScale(clampedScale)
+    setPosition(newPos)
+  }, [scale, position])
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = stageRef.current
     if (!stage) return
+
+    if (isSpacePressed) {
+      setIsPanning(true)
+      return
+    }
 
     const pointer = stage.getPointerPosition()
     if (!pointer) return
@@ -513,7 +554,7 @@ const EditorCanvas = ({
         }
       }
     }
-  }, [position, scale, onCanvasClick, activeTool])
+  }, [position, scale, onCanvasClick, activeTool, isSpacePressed])
 
   const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = stageRef.current
@@ -642,6 +683,7 @@ const EditorCanvas = ({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         draggable={false}
+        style={{ cursor: isSpacePressed || isPanning ? 'grab' : 'default' }}
       >
         <KonvaLayer>
           <Rect

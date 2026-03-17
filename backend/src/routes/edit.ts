@@ -87,11 +87,14 @@ const createTask = async (
     : calculateAspectRatio(800, 600)
 
   const payload: any = {
-    workflowId: RUNNINGHUB_WORKFLOW_ID,
     prompt: prompt,
     imageUrls: imageUrls,
     aspectRatio: finalAspectRatio,
     resolution: resolution
+  }
+  
+  if (RUNNINGHUB_WORKFLOW_ID) {
+    payload.workflowId = RUNNINGHUB_WORKFLOW_ID
   }
 
   const response = await axios.post(url, payload, {
