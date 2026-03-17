@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Layer } from '../useLayerStore'
+import { Layer } from './useLayerStore'
 import { LayerPanel } from './LayerPanel'
 import { AdjustmentsPanel } from './AdjustmentsPanel'
 import { HistoryPanel, HistoryAction } from './HistoryPanel'

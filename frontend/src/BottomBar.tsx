@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Layer } from '../useLayerStore'
-import { PlacedGraphic } from '../usePlacedGraphics'
-import { sendToAI, generatePrompt } from '../services/editService'
+import { Layer } from './useLayerStore'
+import { PlacedGraphic } from './usePlacedGraphics'
+import { sendToAI, generatePrompt } from './services/editService'
 
 interface BottomBarProps {
   layers: Layer[]

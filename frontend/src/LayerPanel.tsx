@@ -1,4 +1,4 @@
-import { Layer } from '../useLayerStore'
+import { Layer } from './useLayerStore'
 
 interface LayerPanelProps {
   layers: Layer[]
