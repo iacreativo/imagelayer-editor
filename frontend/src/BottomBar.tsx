@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Layer } from './useLayerStore'
 import { PlacedGraphic } from './usePlacedGraphics'
-import { sendToAI, generatePrompt } from './services/editService'
+import { sendToAI, generatePrompt, Resolution, calculateAspectRatio } from './services/editService'
 
 interface BottomBarProps {
   layers: Layer[]
@@ -16,6 +16,8 @@ interface BottomBarProps {
   }
   onSendToAI: () => void
   canUndo: boolean
+  selectedResolution?: Resolution
+  onResolutionChange?: (resolution: Resolution) => void
 }
 
 export const BottomBar = ({
@@ -26,13 +28,21 @@ export const BottomBar = ({
   onFlatten,
   loadingState,
   onSendToAI,
-  canUndo
+  canUndo,
+  selectedResolution = '2k',
+  onResolutionChange
 }: BottomBarProps) => {
   const [showPromptTooltip, setShowPromptTooltip] = useState(false)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const compiledPrompt = generatePrompt(placedGraphics)
+
+  const handleResolutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (onResolutionChange) {
+      onResolutionChange(e.target.value as Resolution)
+    }
+  }
 
   const handleGenerateClick = (e: React.MouseEvent) => {
     onSendToAI()
@@ -80,6 +90,20 @@ export const BottomBar = ({
 
   return (
     <div style={styles.container}>
+      <div style={styles.resolutionSelector}>
+        <label style={styles.resolutionLabel}>Resolución:</label>
+        <select 
+          value={selectedResolution} 
+          onChange={handleResolutionChange}
+          style={styles.resolutionSelect}
+        >
+          <option value="1k">1K (1024px)</option>
+          <option value="2k">2K (2048px)</option>
+          <option value="4k">4K (4096px)</option>
+        </select>
+        <span style={styles.aspectRatio}>Ratio: 4:3</span>
+      </div>
+
       <div style={styles.buttonGroup}>
         {buttons.map(btn => (
           <button
@@ -145,6 +169,28 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#16213e',
     borderTop: '1px solid #0f3460',
     position: 'relative'
+  },
+  resolutionSelector: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
+  },
+  resolutionLabel: {
+    fontSize: '12px',
+    color: '#aaa'
+  },
+  resolutionSelect: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid #0f3460',
+    background: '#0f3460',
+    color: '#fff',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  aspectRatio: {
+    fontSize: '11px',
+    color: '#666'
   },
   buttonGroup: {
     display: 'flex',

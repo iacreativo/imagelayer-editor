@@ -17,6 +17,57 @@ interface LoadingState {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
+export type Resolution = '1k' | '2k' | '4k'
+
+export const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5'] as const
+export type AspectRatio = typeof ASPECT_RATIOS[number]
+
+export function calculateAspectRatio(width: number, height: number): AspectRatio {
+  const ratio = width / height
+  const ratios: Record<string, number> = {
+    '1:1': 1, '16:9': 16/9, '9:16': 9/16,
+    '4:3': 4/3, '3:4': 3/4, '3:2': 3/2,
+    '2:3': 2/3, '5:4': 5/4, '4:5': 4/5
+  }
+  
+  let closest: AspectRatio = '1:1'
+  let minDiff = Math.abs(ratio - 1)
+  
+  for (const [key, value] of Object.entries(ratios)) {
+    const diff = Math.abs(ratio - value)
+    if (diff < minDiff) {
+      minDiff = diff
+      closest = key as AspectRatio
+    }
+  }
+  
+  return closest
+}
+
+export function getResolutionDimensions(resolution: Resolution, aspectRatio: AspectRatio): { width: number; height: number } {
+  const basePixels: Record<Resolution, number> = {
+    '1k': 1024,
+    '2k': 2048,
+    '4k': 4096
+  }
+  
+  const pixels = basePixels[resolution]
+  const [w, h] = aspectRatio.split(':').map(Number)
+  const ratio = w / h
+  
+  let width: number, height: number
+  
+  if (ratio >= 1) {
+    width = pixels
+    height = Math.round(pixels / ratio)
+  } else {
+    height = pixels
+    width = Math.round(pixels * ratio)
+  }
+  
+  return { width, height }
+}
+
 export const getBase64FromImageUrl = async (imageUrl: string): Promise<string> => {
   if (imageUrl.startsWith('data:')) {
     return imageUrl
@@ -55,12 +106,16 @@ export const generateMask = (
 export const sendToAI = async (
   imageBase64: string,
   prompt: string,
-  maskBase64?: string
+  maskBase64?: string,
+  aspectRatio?: string,
+  resolution: Resolution = '1k'
 ): Promise<EditResponse> => {
   const response = await axios.post<EditResponse>(`${API_URL}/edit`, {
     imageBase64,
     prompt,
-    maskBase64
+    maskBase64,
+    aspectRatio,
+    resolution
   })
 
   return response.data
@@ -69,12 +124,16 @@ export const sendToAI = async (
 export const sendSimpleEdit = async (
   imageBase64: string,
   prompt: string,
-  maskBase64?: string
+  maskBase64?: string,
+  aspectRatio?: string,
+  resolution: Resolution = '1k'
 ): Promise<EditResponse> => {
   const response = await axios.post<EditResponse>(`${API_URL}/edit`, {
     imageBase64,
     prompt,
-    maskBase64
+    maskBase64,
+    aspectRatio,
+    resolution
   })
 
   return response.data

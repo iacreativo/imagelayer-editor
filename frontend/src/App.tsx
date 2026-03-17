@@ -9,7 +9,7 @@ import { RightPanel } from './RightPanel'
 import { BottomBar } from './BottomBar'
 import { MiniToolbar, Tool } from './MiniToolbar'
 import { HeaderBar } from './HeaderBar'
-import { sendToAI, generatePrompt, generateMask } from './services/editService'
+import { sendToAI, generatePrompt, generateMask, calculateAspectRatio, Resolution } from './services/editService'
 import { editingGraphics, SpatialPosition } from './data/editingGraphics'
 import { authService } from './services/authService'
 import { projectService, ProjectData } from './services/projectService'
@@ -50,6 +50,8 @@ function App() {
   
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(null)
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
+  const [selectedResolution, setSelectedResolution] = useState<Resolution>('2k')
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
   const [loadingState, setLoadingState] = useState({
     isLoading: false,
     prompt: '',
@@ -201,7 +203,15 @@ function App() {
 
       const maskBase64 = placedGraphics.length > 0 ? generateMask(placedGraphics) : undefined
 
-      const data = await sendToAI(imageBase64, prompt, maskBase64)
+      const aspectRatio = calculateAspectRatio(800, 600)
+      
+      const data = await sendToAI(
+        imageBase64, 
+        prompt, 
+        maskBase64,
+        aspectRatio,
+        selectedResolution
+      )
 
       if (!data.resultImageBase64) {
         throw new Error('No image returned from AI')
@@ -214,7 +224,7 @@ function App() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setLoadingState({ isLoading: false, prompt: '', error: errorMessage })
     }
-  }, [layers, placedGraphics, addLayer, clearPlacedGraphics])
+  }, [layers, placedGraphics, addLayer, clearPlacedGraphics, selectedResolution])
 
   const handleUndo = useCallback(() => {
     undo()
@@ -321,6 +331,8 @@ function App() {
             loadingState={loadingState}
             onSendToAI={handleSendToAI}
             canUndo={history.length > 0}
+            selectedResolution={selectedResolution}
+            onResolutionChange={setSelectedResolution}
           />
         </div>
         

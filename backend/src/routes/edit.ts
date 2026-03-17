@@ -15,12 +15,16 @@ interface EditRequestBody {
   imageBase64: string
   prompt: string
   maskBase64?: string
+  aspectRatio?: string
+  resolution?: string
 }
 
 interface EditResponseBody {
   resultImageBase64: string
   provider: string
   cost: number
+  originalWidth?: number
+  originalHeight?: number
 }
 
 const RUNNINGHUB_API_KEY = process.env.RUNNINGHUB_API_KEY || ''
@@ -31,10 +35,42 @@ const RUNNINGHUB_WORKFLOW_ID = process.env.RUNNINGHUB_WORKFLOW_ID || ''
 const MAX_POLL_ATTEMPTS = 60
 const POLL_INTERVAL_MS = 2000
 
+const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1']
+
+function calculateAspectRatio(width: number, height: number): string {
+  const ratio = width / height
+  const ratios: Record<string, number> = {
+    '1:1': 1, '16:9': 16/9, '9:16': 9/16,
+    '4:3': 4/3, '3:4': 3/4, '3:2': 3/2,
+    '2:3': 2/3, '5:4': 5/4, '4:5': 4/5,
+    '21:9': 21/9, '1:4': 1/4, '4:1': 4/1,
+    '1:8': 1/8, '8:1': 8/1
+  }
+  
+  let closest = '1:1'
+  let minDiff = Math.abs(ratio - 1)
+  
+  for (const [key, value] of Object.entries(ratios)) {
+    const diff = Math.abs(ratio - value)
+    if (diff < minDiff) {
+      minDiff = diff
+      closest = key
+    }
+  }
+  
+  return closest
+}
+
 /**
  * Creates a task on RunningHub using direct Base64 images
  */
-const createTask = async (imageBase64: string, prompt: string, maskBase64?: string): Promise<string> => {
+const createTask = async (
+  imageBase64: string, 
+  prompt: string, 
+  maskBase64?: string,
+  aspectRatio?: string,
+  resolution: string = '1k'
+): Promise<string> => {
   const url = `${RUNNINGHUB_BASE_URL}${RUNNINGHUB_ENDPOINT}`
   
   // Ensure we have correct data URI format (RunningHub might need the header for decoding)
@@ -45,12 +81,17 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
     imageUrls.push(formatBase64(maskBase64))
   }
 
+  // Validate aspect ratio, fallback to calculated if not valid
+  const finalAspectRatio = aspectRatio && ASPECT_RATIOS.includes(aspectRatio) 
+    ? aspectRatio 
+    : calculateAspectRatio(800, 600)
+
   const payload: any = {
     workflowId: RUNNINGHUB_WORKFLOW_ID,
     prompt: prompt,
     imageUrls: imageUrls,
-    aspectRatio: '1:1',
-    resolution: '1k'
+    aspectRatio: finalAspectRatio,
+    resolution: resolution
   }
 
   const response = await axios.post(url, payload, {
@@ -148,7 +189,7 @@ const downloadAsBase64 = async (url: string): Promise<string> => {
 
 router.post('/edit', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { imageBase64, prompt, maskBase64 } = req.body as EditRequestBody
+    const { imageBase64, prompt, maskBase64, aspectRatio, resolution } = req.body as EditRequestBody
 
     if (!imageBase64 || !prompt) {
       res.status(400).json({ 
@@ -158,9 +199,11 @@ router.post('/edit', async (req: Request, res: Response): Promise<void> => {
     }
 
     console.log('--- Starting AI Edit Process ---')
+    console.log(`   Aspect Ratio: ${aspectRatio || 'auto'}`)
+    console.log(`   Resolution: ${resolution || '1k'}`)
     
     console.log('1. Creating task...')
-    const taskId = await createTask(imageBase64, prompt, maskBase64)
+    const taskId = await createTask(imageBase64, prompt, maskBase64, aspectRatio, resolution)
     console.log('   Task created:', taskId)
     
     console.log('2. Polling for results...')
