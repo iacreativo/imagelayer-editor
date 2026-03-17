@@ -11,6 +11,8 @@ import { MiniToolbar, Tool } from './MiniToolbar'
 import { sendToAI, generatePrompt } from './services/editService'
 import { editingGraphics, SpatialPosition } from './data/editingGraphics'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+
 function App() {
   const { 
     layers, 
@@ -94,7 +96,7 @@ function App() {
 
       const imageBase64 = baseLayer.imageDataUrl
 
-      const response = await fetch('http://localhost:4000/api/edit', {
+      const response = await fetch(`${API_URL}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
