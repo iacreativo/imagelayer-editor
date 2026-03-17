@@ -610,8 +610,35 @@ const URLImage = ({ src, layer }: URLImageProps) => {
     )
   }
 
+  const canvasWidth = 800
+  const canvasHeight = 600
+  const imgRatio = image.width / image.height
+  const canvasRatio = canvasWidth / canvasHeight
+
+  let drawWidth: number
+  let drawHeight: number
+  let offsetX = 0
+  let offsetY = 0
+
+  if (imgRatio > canvasRatio) {
+    drawWidth = canvasWidth
+    drawHeight = canvasWidth / imgRatio
+    offsetY = (canvasHeight - drawHeight) / 2
+  } else {
+    drawHeight = canvasHeight
+    drawWidth = canvasHeight * imgRatio
+    offsetX = (canvasWidth - drawWidth) / 2
+  }
+
   return (
-    <KonvaImage id={layer.id} image={image} x={0} y={0} width={800} height={600} />
+    <KonvaImage 
+      id={layer.id} 
+      image={image} 
+      x={offsetX} 
+      y={offsetY} 
+      width={drawWidth} 
+      height={drawHeight} 
+    />
   )
 }
 
