@@ -61,17 +61,20 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
     timeout: 30000
   })
 
-  // RunningHub returns code 0 for success
+  // Log raw response for debugging if it's not a success code 0
   if (response.data.code !== 0) {
-    throw new Error(`RunningHub API error (${response.data.code}): ${response.data.msg || response.data.message}`)
+    console.log('RunningHub Raw Error Response:', JSON.stringify(response.data, null, 2))
+    throw new Error(`RunningHub API error (${response.data.code}): ${response.data.msg || response.data.message || 'No message provided'}`)
   }
 
   if (!response.data.data?.taskId) {
+    console.log('RunningHub Missing TaskId Response:', JSON.stringify(response.data, null, 2))
     throw new Error('No taskId returned from RunningHub API')
   }
 
   return response.data.data.taskId
 }
+
 
 /**
  * Polls for task results using the correct /openapi/v2/query endpoint (POST)
