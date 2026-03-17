@@ -112,12 +112,18 @@ const pollTaskStatus = async (taskId: string): Promise<string> => {
 
     if (status === 'SUCCESS' || status === 'success') {
       const results = taskData?.results
-      if (!results || !results.images || results.images.length === 0) {
-        throw new Error('No results in successful response')
+      
+      if (Array.isArray(results) && results.length > 0) {
+        // Correct RunningHub v2 format: results is an array of objects with url
+        return results[0].url || results[0]
+      } else if (results && results.images && Array.isArray(results.images) && results.images.length > 0) {
+        // v1 format: results.images[0]
+        return results.images[0]
       }
-      // Return the first image URL from results.images
-      return results.images[0]
+
+      throw new Error('No results in successful response or unknown format')
     }
+
 
     if (status === 'FAILED' || status === 'failed') {
       throw new Error(`Task failed on RunningHub: ${taskData?.error || 'Unknown error'}`)
