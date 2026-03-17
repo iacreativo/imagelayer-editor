@@ -10,6 +10,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    sourcemap: false
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
   }
 })
