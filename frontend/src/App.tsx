@@ -8,6 +8,7 @@ import { Toolbar } from './Toolbar'
 import { RightPanel } from './RightPanel'
 import { BottomBar } from './BottomBar'
 import { MiniToolbar, Tool } from './MiniToolbar'
+import { HeaderBar } from './HeaderBar'
 import { sendToAI, generatePrompt } from './services/editService'
 import { editingGraphics, SpatialPosition } from './data/editingGraphics'
 
@@ -142,8 +143,16 @@ function App() {
     link.click()
   }, [flattenLayers])
 
+  const handleUploadImage = useCallback((base64: string) => {
+    const baseLayer = layers.find(l => l.type === 'base')
+    if (baseLayer) {
+      updateLayer(baseLayer.id, { imageDataUrl: base64 })
+    }
+  }, [layers, updateLayer])
+
   return (
     <div style={appStyles.container}>
+      <HeaderBar onUploadImage={handleUploadImage} />
       <div style={appStyles.main}>
         <div style={appStyles.leftPanel}>
           <Toolbar
