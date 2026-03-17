@@ -37,8 +37,13 @@ const POLL_INTERVAL_MS = 2000
 const createTask = async (imageBase64: string, prompt: string, maskBase64?: string): Promise<string> => {
   const url = `${RUNNINGHUB_BASE_URL}${RUNNINGHUB_ENDPOINT}`
   
-  // Ensure we have correct data URI format
-  const formatBase64 = (b64: string) => b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`
+  // Ensure we have raw Base64 (strip data URI prefix)
+  const formatBase64 = (b64: string) => {
+    if (b64.includes(';base64,')) {
+      return b64.split(';base64,')[1]
+    }
+    return b64
+  }
 
   const imageUrls = [formatBase64(imageBase64)]
   if (maskBase64) {
