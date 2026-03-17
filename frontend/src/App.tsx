@@ -18,7 +18,8 @@ function App() {
   const { 
     layers, 
     addLayer, 
-    updateLayer, 
+    updateLayer,
+    forceUpdateLayer,
     removeLayer, 
     reorderLayers, 
     flattenLayers,
@@ -146,9 +147,11 @@ function App() {
   const handleUploadImage = useCallback((base64: string) => {
     const baseLayer = layers.find(l => l.type === 'base')
     if (baseLayer) {
-      updateLayer(baseLayer.id, { imageDataUrl: base64 })
+      forceUpdateLayer(baseLayer.id, { imageDataUrl: base64, locked: false })
+    } else {
+      addLayer('base', base64)
     }
-  }, [layers, updateLayer])
+  }, [layers, forceUpdateLayer, addLayer])
 
   return (
     <div style={appStyles.container}>
@@ -585,23 +588,30 @@ const URLImage = ({ src, layer }: URLImageProps) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
 
   useEffect(() => {
+    console.log('URLImage loading:', layer.name, 'src length:', src?.length)
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => setImage(img)
+    img.onload = () => {
+      console.log('URLImage loaded:', layer.name, img.width, img.height)
+      setImage(img)
+    }
+    img.onerror = (e) => {
+      console.log('URLImage error:', layer.name, e)
+    }
     img.src = src
-  }, [src])
+  }, [src, layer.name])
 
-  if (!image) return null
+  if (!image) {
+    return (
+      <Group>
+        <KonvaRect x={0} y={0} width={800} height={600} fill="#333" />
+        <Text x={400} y={300} text={`Loading: ${layer.name}`} fill="#888" fontSize={14} />
+      </Group>
+    )
+  }
 
   return (
-    <KonvaImage
-      id={layer.id}
-      image={image}
-      x={0}
-      y={0}
-      width={800}
-      height={600}
-    />
+    <KonvaImage id={layer.id} image={image} x={0} y={0} width={800} height={600} />
   )
 }
 

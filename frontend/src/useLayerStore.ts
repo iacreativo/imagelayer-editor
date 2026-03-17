@@ -135,9 +135,30 @@ export const useLayerStore = () => {
         previousState: layer,
         newState: { ...layer, ...updates }
       })
-      
+
       return prev.map(l => 
         l.id === id && !l.locked ? { ...l, ...updates } : l
+      )
+    })
+  }, [addToHistory])
+
+  const forceUpdateLayer = useCallback((id: string, updates: Partial<Omit<Layer, 'id' | 'type' | 'createdAt'>>) => {
+    setLayers(prev => {
+      const layer = prev.find(l => l.id === id)
+      if (!layer) return prev
+      
+      previousStatesRef.current.set(`update_${id}`, [...prev])
+      
+      addToHistory({
+        type: 'update_layer',
+        description: `Actualizar capa: ${layer.name}`,
+        layerId: id,
+        previousState: layer,
+        newState: { ...layer, ...updates }
+      })
+
+      return prev.map(l => 
+        l.id === id ? { ...l, ...updates } : l
       )
     })
   }, [addToHistory])
@@ -281,8 +302,9 @@ export const useLayerStore = () => {
     history,
     addLayer,
     removeLayer,
-    updateLayerOpacity,
     updateLayer,
+    forceUpdateLayer,
+    updateLayerOpacity,
     toggleVisibility,
     reorderLayers,
     flattenLayers,
