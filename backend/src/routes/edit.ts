@@ -44,7 +44,7 @@ interface RunningHubStatusResponse {
 
 const RUNNINGHUB_API_KEY = process.env.RUNNINGHUB_API_KEY || ''
 const RUNNINGHUB_BASE_URL = process.env.RUNNINGHUB_BASE_URL || 'https://www.runninghub.ai'
-const RUNNINGHUB_ENDPOINT = process.env.RUNNINGHUB_ENDPOINT || '/rhart-image-n-pro/edit'
+const RUNNINGHUB_ENDPOINT = process.env.RUNNINGHUB_ENDPOINT || '/rhart-image-n-g31-flash/image-to-image'
 const RUNNINGHUB_WORKFLOW_ID = process.env.RUNNINGHUB_WORKFLOW_ID || ''
 
 const MAX_POLL_ATTEMPTS = 30
@@ -57,8 +57,9 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
     workflowId: RUNNINGHUB_WORKFLOW_ID,
     apiKey: RUNNINGHUB_API_KEY,
     prompt: prompt,
-    input_image: imageBase64,
-    ...(maskBase64 && { mask_image: maskBase64 })
+    imageUrls: [`data:image/png;base64,${imageBase64}`],
+    aspectRatio: '1:1',
+    resolution: '1k'
   }
 
   const response = await axios.post<RunningHubTaskResponse>(url, params, {
