@@ -399,14 +399,52 @@ const EditorCanvas = ({ layers, selectedLayerId, placedGraphics, onUpdatePlacedG
     return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturate}%) hue-rotate(${hueRotate}deg) blur(${blur}px) sepia(${sepia}%)`
   }
 
+  // Movable toolbar state
+  const [toolbarPos, setToolbarPos] = useState({ x: 20, y: 20 })
+  const [isDraggingToolbar, setIsDraggingToolbar] = useState(false)
+  const dragStartPos = useRef({ x: 0, y: 0 })
+
+  const handleToolbarMouseDown = (e: React.MouseEvent) => {
+    setIsDraggingToolbar(true)
+    dragStartPos.current = {
+      x: e.clientX - toolbarPos.x,
+      y: e.clientY - toolbarPos.y
+    }
+  }
+
+  useEffect(() => {
+    const handleMouseMoveGlobal = (e: MouseEvent) => {
+      if (isDraggingToolbar) {
+        setToolbarPos({
+          x: e.clientX - dragStartPos.current.x,
+          y: e.clientY - dragStartPos.current.y
+        })
+      }
+    }
+    const handleMouseUpGlobal = () => setIsDraggingToolbar(false)
+
+    if (isDraggingToolbar) {
+      window.addEventListener('mousemove', handleMouseMoveGlobal)
+      window.addEventListener('mouseup', handleMouseUpGlobal)
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMoveGlobal)
+      window.removeEventListener('mouseup', handleMouseUpGlobal)
+    }
+  }, [isDraggingToolbar])
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#1a1a2e', position: 'relative' }}>
-      <div style={{ 
-        position: 'absolute', 
-        top: 10, 
-        left: 10, 
-        zIndex: 100 
-      }}>
+    <div ref={containerRef} style={{ flex: 1, width: '100%', overflow: 'hidden', background: '#1a1a2e', position: 'relative' }}>
+      <div 
+        onMouseDown={handleToolbarMouseDown}
+        style={{ 
+          position: 'absolute', 
+          top: toolbarPos.y, 
+          left: toolbarPos.x, 
+          zIndex: 100,
+          cursor: isDraggingToolbar ? 'grabbing' : 'grab'
+        }}
+      >
         <MiniToolbar
           activeTool={activeTool}
           onToolChange={setActiveTool}
@@ -670,7 +708,8 @@ const appStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     background: '#1a1a2e',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    height: '100%'
   },
   rightPanel: {
     background: '#16213e',

@@ -35,14 +35,7 @@ export const BottomBar = ({
   const compiledPrompt = generatePrompt(placedGraphics)
 
   const handleGenerateClick = (e: React.MouseEvent) => {
-    if (compiledPrompt && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setTooltipPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top - 10
-      })
-      setShowPromptTooltip(true)
-    }
+    onSendToAI()
   }
 
   useEffect(() => {

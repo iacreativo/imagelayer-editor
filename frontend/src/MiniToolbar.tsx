@@ -53,6 +53,7 @@ export const MiniToolbar = ({
           <button
             key={tool.id}
             onClick={() => onToolChange(tool.id)}
+            onMouseDown={(e) => e.stopPropagation()}
             title={`${tool.label} (${tool.shortcut})`}
             style={{
               ...styles.toolButton,
@@ -68,13 +69,28 @@ export const MiniToolbar = ({
       <div style={styles.divider} />
 
       <div style={styles.zoomGroup}>
-        <button onClick={onZoomOut} title="Zoom out" style={styles.zoomButton}>
+        <button 
+          onClick={onZoomOut} 
+          onMouseDown={(e) => e.stopPropagation()}
+          title="Zoom out" 
+          style={styles.zoomButton}
+        >
           −
         </button>
-        <button onClick={onZoomReset} title="Reset zoom" style={styles.zoomValue}>
+        <button 
+          onClick={onZoomReset} 
+          onMouseDown={(e) => e.stopPropagation()}
+          title="Reset zoom" 
+          style={styles.zoomValue}
+        >
           {Math.round(scale * 100)}%
         </button>
-        <button onClick={onZoomIn} title="Zoom in" style={styles.zoomButton}>
+        <button 
+          onClick={onZoomIn} 
+          onMouseDown={(e) => e.stopPropagation()}
+          title="Zoom in" 
+          style={styles.zoomButton}
+        >
           +
         </button>
       </div>
