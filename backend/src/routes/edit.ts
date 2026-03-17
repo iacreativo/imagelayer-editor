@@ -62,43 +62,64 @@ function calculateAspectRatio(width: number, height: number): string {
 }
 
 /**
- * Creates a task on RunningHub using direct Base64 images
+ * Uploads a base64 image to RunningHub to get a public URL
+ */
+const uploadFile = async (base64Data: string): Promise<string> => {
+  const url = `${RUNNINGHUB_BASE_URL}/openapi/v2/file/upload`
+  
+  const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '')
+  
+  const response = await axios.post(url, {
+    fileBase64: cleanBase64,
+    fileName: `upload-${Date.now()}.png`
+  }, {
+    headers: {
+      'Authorization': `Bearer ${RUNNINGHUB_API_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  })
+
+  const code = response.data.code ?? response.data.errorCode
+  const msg = response.data.msg ?? response.data.message
+
+  if (code !== 0 && code !== "0") {
+    throw new Error(`RunningHub Upload error (${code}): ${msg || 'Upload failed'}`)
+  }
+
+  return response.data.data.url
+}
+
+/**
+ * Creates a task on RunningHub
  */
 const createTask = async (
   imageBase64: string, 
   prompt: string, 
   maskBase64?: string,
   aspectRatio?: string,
-  resolution: string = '1k'
+  resolution: string = '4k'
 ): Promise<string> => {
+  // First upload the image to get a public URL
+  console.log('Uploading image to RunningHub...')
+  const imageUrl = await uploadFile(imageBase64)
+  console.log('Image uploaded:', imageUrl.substring(0, 50) + '...')
+
   const url = `${RUNNINGHUB_BASE_URL}${RUNNINGHUB_ENDPOINT}`
-  
-  // Ensure we have correct data URI format (RunningHub might need the header for decoding)
-  const formatBase64 = (b64: string) => b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`
 
-  const imageUrls = [formatBase64(imageBase64)]
-  if (maskBase64) {
-    imageUrls.push(formatBase64(maskBase64))
-  }
-
-  // Validate aspect ratio, fallback to calculated if not valid
-  const finalAspectRatio = aspectRatio && ASPECT_RATIOS.includes(aspectRatio) 
-    ? aspectRatio 
-    : calculateAspectRatio(800, 600)
+  // Use aspect ratio from frontend, fallback to image's original ratio
+  const finalAspectRatio = aspectRatio || '4:3'
 
   const payload: any = {
     workflowId: RUNNINGHUB_WORKFLOW_ID,
     prompt: prompt,
-    imageUrls: imageUrls,
+    imageUrls: [imageUrl],
     aspectRatio: finalAspectRatio,
     resolution: resolution
   }
 
-  console.log('Creating RunningHub task with:', {
+  console.log('Creating RunningHub task:', {
     workflowId: RUNNINGHUB_WORKFLOW_ID,
-    endpoint: RUNNINGHUB_ENDPOINT,
-    prompt: prompt?.substring(0, 50),
-    imageCount: imageUrls.length,
+    prompt: prompt?.substring(0, 30),
     aspectRatio: finalAspectRatio,
     resolution
   })
