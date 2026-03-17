@@ -14,6 +14,8 @@ export interface Layer {
   name: string
   type: 'base' | 'ai_result' | 'annotation' | 'adjustment'
   imageDataUrl: string | null
+  width?: number
+  height?: number
   opacity: number
   visible: boolean
   blendMode: 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn'

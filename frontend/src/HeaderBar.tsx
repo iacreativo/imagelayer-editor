@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useLayerStore } from './useLayerStore'
 
 interface HeaderBarProps {
-  onUploadImage: (base64: string) => void
+  onUploadImage: (base64: string, width?: number, height?: number) => void
   onBack?: () => void
   saveStatus?: 'saved' | 'saving' | 'unsaved'
   lastSaved?: Date | null
@@ -21,7 +21,15 @@ export const HeaderBar = ({ onUploadImage, onBack, saveStatus, lastSaved }: Head
     const reader = new FileReader()
     reader.onload = (e) => {
       const base64 = e.target?.result as string
-      onUploadImage(base64)
+      
+      const img = new window.Image()
+      img.onload = () => {
+        onUploadImage(base64, img.width, img.height)
+      }
+      img.onerror = () => {
+        onUploadImage(base64)
+      }
+      img.src = base64
     }
     reader.readAsDataURL(file)
   }, [onUploadImage])

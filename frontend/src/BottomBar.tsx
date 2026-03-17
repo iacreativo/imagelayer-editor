@@ -18,6 +18,8 @@ interface BottomBarProps {
   canUndo: boolean
   selectedResolution?: Resolution
   onResolutionChange?: (resolution: Resolution) => void
+  canvasWidth?: number
+  canvasHeight?: number
 }
 
 export const BottomBar = ({
@@ -30,13 +32,19 @@ export const BottomBar = ({
   onSendToAI,
   canUndo,
   selectedResolution = '2k',
-  onResolutionChange
+  onResolutionChange,
+  canvasWidth,
+  canvasHeight
 }: BottomBarProps) => {
   const [showPromptTooltip, setShowPromptTooltip] = useState(false)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const compiledPrompt = generatePrompt(placedGraphics)
+
+  const aspectRatioLabel = canvasWidth && canvasHeight 
+    ? calculateAspectRatio(canvasWidth, canvasHeight)
+    : '4:3'
 
   const handleResolutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (onResolutionChange) {
@@ -101,7 +109,7 @@ export const BottomBar = ({
           <option value="2k">2K (2048px)</option>
           <option value="4k">4K (4096px)</option>
         </select>
-        <span style={styles.aspectRatio}>Ratio: 4:3</span>
+        <span style={styles.aspectRatio}>Ratio: {aspectRatioLabel}</span>
       </div>
 
       <div style={styles.buttonGroup}>

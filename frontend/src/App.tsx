@@ -100,6 +100,13 @@ function App() {
         })))
       }
       
+      if (data.canvasSettings) {
+        setImageDimensions({ 
+          width: data.canvasSettings.width, 
+          height: data.canvasSettings.height 
+        })
+      }
+      
       setCurrentProjectId(projectId)
       setView('editor')
       setLastSaved(new Date())
@@ -118,7 +125,12 @@ function App() {
         layers: layers as any[],
         graphics: placedGraphics,
         history: history as any[],
-        canvasSettings: { width: 800, height: 600, zoom: 1, position: { x: 0, y: 0 } }
+        canvasSettings: { 
+          width: imageDimensions?.width || 800, 
+          height: imageDimensions?.height || 600, 
+          zoom: 1, 
+          position: { x: 0, y: 0 } 
+        }
       }
       
       await projectService.updateProject(currentProjectId, { data })
@@ -128,7 +140,7 @@ function App() {
       console.error('Error saving project:', err)
       setSaveStatus('unsaved')
     }
-  }, [currentProjectId, layers, placedGraphics, history])
+  }, [currentProjectId, layers, placedGraphics, history, imageDimensions])
 
   useEffect(() => {
     if (view === 'editor' && currentProjectId) {
@@ -192,18 +204,21 @@ function App() {
       const prompt = generatePrompt(placedGraphics)
       setLoadingState({ isLoading: true, prompt, error: null })
       
+      const canvasWidth = imageDimensions?.width || 800
+      const canvasHeight = imageDimensions?.height || 600
+      
       const canvas = document.createElement('canvas')
-      canvas.width = 800
-      canvas.height = 600
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
       const imageBase64 = await flattenLayers(canvas)
 
       if (!imageBase64) {
         throw new Error('Could not rasterize canvas')
       }
 
-      const maskBase64 = placedGraphics.length > 0 ? generateMask(placedGraphics) : undefined
+      const maskBase64 = placedGraphics.length > 0 ? generateMask(placedGraphics, canvasWidth, canvasHeight) : undefined
 
-      const aspectRatio = calculateAspectRatio(800, 600)
+      const aspectRatio = calculateAspectRatio(canvasWidth, canvasHeight)
       
       const data = await sendToAI(
         imageBase64, 
@@ -224,7 +239,7 @@ function App() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setLoadingState({ isLoading: false, prompt: '', error: errorMessage })
     }
-  }, [layers, placedGraphics, addLayer, clearPlacedGraphics, selectedResolution])
+  }, [layers, placedGraphics, addLayer, clearPlacedGraphics, selectedResolution, imageDimensions])
 
   const handleUndo = useCallback(() => {
     undo()
@@ -256,12 +271,28 @@ function App() {
     link.click()
   }, [flattenLayers])
 
-  const handleUploadImage = useCallback((base64: string) => {
+  const handleUploadImage = useCallback((base64: string, width?: number, height?: number) => {
     const baseLayer = layers.find(l => l.type === 'base')
     if (baseLayer) {
-      forceUpdateLayer(baseLayer.id, { imageDataUrl: base64, locked: false })
+      forceUpdateLayer(baseLayer.id, { 
+        imageDataUrl: base64, 
+        locked: false,
+        width,
+        height
+      })
     } else {
       addLayer('base', base64)
+      if (width && height) {
+        setTimeout(() => {
+          const newBaseLayer = layers.find(l => l.type === 'base')
+          if (newBaseLayer) {
+            forceUpdateLayer(newBaseLayer.id, { width, height })
+          }
+        }, 0)
+      }
+    }
+    if (width && height) {
+      setImageDimensions({ width, height })
     }
   }, [layers, forceUpdateLayer, addLayer])
 
@@ -320,6 +351,8 @@ function App() {
             placedGraphics={placedGraphics}
             onUpdatePlacedGraphic={updatePlacedGraphic}
             onCanvasClick={handleCanvasClick}
+            canvasWidth={imageDimensions?.width || 800}
+            canvasHeight={imageDimensions?.height || 600}
           />
           
           <BottomBar
@@ -333,6 +366,8 @@ function App() {
             canUndo={history.length > 0}
             selectedResolution={selectedResolution}
             onResolutionChange={setSelectedResolution}
+            canvasWidth={imageDimensions?.width}
+            canvasHeight={imageDimensions?.height}
           />
         </div>
         
@@ -360,14 +395,24 @@ interface EditorCanvasProps {
   placedGraphics: PlacedGraphic[]
   onUpdatePlacedGraphic: (id: string, updates: Partial<PlacedGraphic>) => void
   onCanvasClick?: (x: number, y: number) => void
+  canvasWidth?: number
+  canvasHeight?: number
 }
 
-const EditorCanvas = ({ layers, selectedLayerId, placedGraphics, onUpdatePlacedGraphic, onCanvasClick }: EditorCanvasProps) => {
+const EditorCanvas = ({ 
+  layers, 
+  selectedLayerId, 
+  placedGraphics, 
+  onUpdatePlacedGraphic, 
+  onCanvasClick,
+  canvasWidth = 800,
+  canvasHeight = 600
+}: EditorCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   
-  const [size, setSize] = useState({ width: 800, height: 600 })
+  const [size, setSize] = useState({ width: canvasWidth, height: canvasHeight })
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -747,14 +792,14 @@ const URLImage = ({ src, layer }: URLImageProps) => {
   if (!image) {
     return (
       <Group>
-        <KonvaRect x={0} y={0} width={800} height={600} fill="#333" />
-        <Text x={400} y={300} text={`Loading: ${layer.name}`} fill="#888" fontSize={14} />
+        <KonvaRect x={0} y={0} width={layer.width || 800} height={layer.height || 600} fill="#333" />
+        <Text x={(layer.width || 800) / 2} y={(layer.height || 600) / 2} text={`Loading: ${layer.name}`} fill="#888" fontSize={14} />
       </Group>
     )
   }
 
-  const canvasWidth = 800
-  const canvasHeight = 600
+  const canvasWidth = layer.width || image.width || 800
+  const canvasHeight = layer.height || image.height || 600
   const imgRatio = image.width / image.height
   const canvasRatio = canvasWidth / canvasHeight
 
