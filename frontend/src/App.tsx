@@ -447,7 +447,7 @@ const EditorCanvas = ({ layers, selectedLayerId, placedGraphics, onUpdatePlacedG
         />
 
         {showRulers && (
-          <>
+          <KonvaLayer>
             <Line
               points={[0, 0, 800, 0]}
               stroke="#e94560"
@@ -460,7 +460,7 @@ const EditorCanvas = ({ layers, selectedLayerId, placedGraphics, onUpdatePlacedG
               strokeWidth={1}
               dash={[5, 5]}
             />
-          </>
+          </KonvaLayer>
         )}
         
         {sortedLayers.map((layer) => (
