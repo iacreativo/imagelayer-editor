@@ -59,7 +59,7 @@ export const useLayerStore = () => {
   const [layers, setLayers] = useState<Layer[]>([createBaseLayer()])
   const [history, setHistory] = useState<HistoryAction[]>([])
   const historyLimit = 20
-  const previousStatesRef = useRef<Map<string, Layer>>(new Map())
+  const previousStatesRef = useRef<Map<string, Layer[]>>(new Map())
 
   const addToHistory = useCallback((action: Omit<HistoryAction, 'id' | 'timestamp'>) => {
     const newAction: HistoryAction = {
@@ -74,11 +74,13 @@ export const useLayerStore = () => {
   }, [])
 
   const addLayer = useCallback((type: Layer['type'], imageDataUrl: string | null = null) => {
+    const newId = crypto.randomUUID()
+    
     setLayers(prev => {
       previousStatesRef.current.set('add_layer', [...prev])
       
       const newLayer: Layer = {
-        id: crypto.randomUUID(),
+        id: newId,
         name: `${type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')} ${prev.length}`,
         type,
         imageDataUrl,
@@ -101,6 +103,8 @@ export const useLayerStore = () => {
       
       return updated
     })
+
+    return newId
   }, [addToHistory])
 
   const removeLayer = useCallback((id: string) => {

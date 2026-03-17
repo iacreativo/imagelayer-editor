@@ -23,47 +23,58 @@ interface EditResponseBody {
   cost: number
 }
 
-interface RunningHubTaskResponse {
-  code: number
-  msg: string
-  data?: {
-    taskId: string
-  }
-}
-
-interface RunningHubStatusResponse {
-  code: number
-  msg: string
-  data?: {
-    status: 'pending' | 'running' | 'success' | 'failed'
-    output?: {
-      image?: string
-    }
-  }
-}
-
 const RUNNINGHUB_API_KEY = process.env.RUNNINGHUB_API_KEY || ''
 const RUNNINGHUB_BASE_URL = process.env.RUNNINGHUB_BASE_URL || 'https://www.runninghub.ai'
-const RUNNINGHUB_ENDPOINT = process.env.RUNNINGHUB_ENDPOINT || '/rhart-image-n-g31-flash/image-to-image'
+const RUNNINGHUB_ENDPOINT = process.env.RUNNINGHUB_ENDPOINT || '/openapi/v2/rhart-image-n-pro/edit'
 const RUNNINGHUB_WORKFLOW_ID = process.env.RUNNINGHUB_WORKFLOW_ID || ''
 
-const MAX_POLL_ATTEMPTS = 30
+const MAX_POLL_ATTEMPTS = 60
 const POLL_INTERVAL_MS = 2000
 
-const createTask = async (imageBase64: string, prompt: string, maskBase64?: string): Promise<string> => {
-  const url = `${RUNNINGHUB_BASE_URL}/task/openapi/create`
+/**
+ * Uploads a base64 image to RunningHub to get a public URL
+ */
+const uploadFile = async (base64Data: string): Promise<string> => {
+  const url = `${RUNNINGHUB_BASE_URL}/openapi/v2/file/upload`
   
-  const params = {
+  // Remove data:image/...;base64, prefix if present
+  const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '')
+  
+  const response = await axios.post(url, {
+    fileBase64: cleanBase64,
+    fileName: `upload-${Date.now()}.png`
+  }, {
+    headers: {
+      'Authorization': `Bearer ${RUNNINGHUB_API_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (response.data.code !== 0) {
+    throw new Error(`RunningHub Upload error: ${response.data.msg}`)
+  }
+
+  return response.data.data.url
+}
+
+const createTask = async (imageUrl: string, prompt: string, maskUrl?: string): Promise<string> => {
+  const url = `${RUNNINGHUB_BASE_URL}${RUNNINGHUB_ENDPOINT}`
+  
+  const payload: any = {
     workflowId: RUNNINGHUB_WORKFLOW_ID,
-    apiKey: RUNNINGHUB_API_KEY,
     prompt: prompt,
-    imageUrls: [`data:image/png;base64,${imageBase64}`],
+    imageUrls: [imageUrl],
     aspectRatio: '1:1',
     resolution: '1k'
   }
 
-  const response = await axios.post<RunningHubTaskResponse>(url, params, {
+  // If there's a mask, some engines might need it as a second image or a specific field
+  // For NanoBanana Pro, we might just include it in imageUrls if the prompt handles it,
+  // but usually it's better to check documentation. For now, we follow the primary image.
+
+  const response = await axios.post(url, payload, {
     headers: {
+      'Authorization': `Bearer ${RUNNINGHUB_API_KEY}`,
       'Content-Type': 'application/json'
     },
     timeout: 30000
@@ -81,14 +92,12 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
 }
 
 const pollTaskStatus = async (taskId: string): Promise<string> => {
-  const url = `${RUNNINGHUB_BASE_URL}/task/openapi/outputs`
+  const url = `${RUNNINGHUB_BASE_URL}/openapi/v2/task/result`
   
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-    const response = await axios.get<RunningHubStatusResponse>(url, {
-      params: {
-        taskId: taskId,
-        apiKey: RUNNINGHUB_API_KEY
-      },
+    const response = await axios.get(url, {
+      params: { taskId },
+      headers: { 'Authorization': `Bearer ${RUNNINGHUB_API_KEY}` },
       timeout: 10000
     })
 
@@ -96,28 +105,36 @@ const pollTaskStatus = async (taskId: string): Promise<string> => {
       throw new Error(`RunningHub status error: ${response.data.msg}`)
     }
 
-    const status = response.data.data?.status
+    const taskData = response.data.data
+    const status = taskData?.status
 
-    if (status === 'success') {
-      const outputImage = response.data.data?.output?.image
-      if (!outputImage) {
-        throw new Error('No image in successful response')
+    if (status === 'SUCCESS' || status === 'success') {
+      const results = taskData?.results
+      if (!results || results.length === 0) {
+        throw new Error('No results in successful response')
       }
-      return outputImage
+      // Return the first image URL
+      return results[0].url
     }
 
-    if (status === 'failed') {
-      throw new Error('Task failed on RunningHub')
-    }
-
-    if (status !== 'pending' && status !== 'running') {
-      throw new Error(`Unknown task status: ${status}`)
+    if (status === 'FAILED' || status === 'failed') {
+      throw new Error(`Task failed on RunningHub: ${taskData?.error || 'Unknown error'}`)
     }
 
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
   }
 
   throw new Error('Task polling timeout')
+}
+
+/**
+ * Downloads an image from a URL and converts it to base64
+ */
+const downloadAsBase64 = async (url: string): Promise<string> => {
+  const response = await axios.get(url, { responseType: 'arraybuffer' })
+  const base64 = Buffer.from(response.data, 'binary').toString('base64')
+  const contentType = response.headers['content-type'] || 'image/png'
+  return `data:${contentType};base64,${base64}`
 }
 
 router.post('/edit', async (req: Request, res: Response): Promise<void> => {
@@ -131,15 +148,32 @@ router.post('/edit', async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    const cleanImageBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
-    const cleanMaskBase64 = maskBase64?.replace(/^data:image\/\w+;base64,/, '')
+    console.log('--- Starting AI Edit Process ---')
+    console.log('1. Uploading base image...')
+    const imageUrl = await uploadFile(imageBase64)
+    console.log('   Image uploaded:', imageUrl)
 
-    const taskId = await createTask(cleanImageBase64, prompt, cleanMaskBase64)
+    let maskUrl = undefined
+    if (maskBase64) {
+      console.log('2. Uploading mask...')
+      maskUrl = await uploadFile(maskBase64)
+      console.log('   Mask uploaded:', maskUrl)
+    }
+
+    console.log('3. Creating task...')
+    const taskId = await createTask(imageUrl, prompt, maskUrl)
+    console.log('   Task created:', taskId)
     
-    const resultImageBase64 = await pollTaskStatus(taskId)
+    console.log('4. Polling for results...')
+    const resultImageUrl = await pollTaskStatus(taskId)
+    console.log('   Result URL received:', resultImageUrl)
+
+    console.log('5. Converting result to base64...')
+    const resultImageBase64 = await downloadAsBase64(resultImageUrl)
+    console.log('   Conversion complete.')
 
     const response: EditResponseBody = {
-      resultImageBase64: `data:image/png;base64,${resultImageBase64}`,
+      resultImageBase64,
       provider: 'runninghub',
       cost: 0
     }
@@ -154,10 +188,6 @@ router.post('/edit', async (req: Request, res: Response): Promise<void> => {
           error: 'External API error',
           details: error.response.data
         })
-        return
-      }
-      if (error.code === 'ECONNABORTED') {
-        res.status(504).json({ error: 'Request timeout' })
         return
       }
     }

@@ -9,7 +9,7 @@ import { RightPanel } from './RightPanel'
 import { BottomBar } from './BottomBar'
 import { MiniToolbar, Tool } from './MiniToolbar'
 import { HeaderBar } from './HeaderBar'
-import { sendToAI, generatePrompt } from './services/editService'
+import { sendToAI, generatePrompt, generateMask } from './services/editService'
 import { editingGraphics, SpatialPosition } from './data/editingGraphics'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -96,26 +96,30 @@ function App() {
         throw new Error('No base image found')
       }
 
+      // Convert image if needed
       const imageBase64 = baseLayer.imageDataUrl
 
-      const response = await fetch(`${API_URL}/edit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: imageBase64.replace('data:image/png;base64,', '').replace('data:image/jpeg;base64,', ''),
-          prompt
-        })
-      })
+      // Get mask if any
+      const maskBase64 = placedGraphics.length > 0 ? generateMask(placedGraphics) : undefined
 
-      const data = await response.json()
+      const data = await sendToAI(
+        imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+        prompt,
+        maskBase64?.replace(/^data:image\/\w+;base64,/, '')
+      )
 
-      if (data.error) {
-        throw new Error(data.error)
+      if (!data.resultImageBase64) {
+        throw new Error('No image returned from AI')
       }
 
-      addLayer('ai_result', data.resultImageBase64)
-      clearPlacedGraphics()
+      // Add as new layer and clear annotations
+      const newLayerId = addLayer('ai_result', data.resultImageBase64)
       
+      // Since addLayer might be async in terms of state update, we use effect or immediate follow up
+      // but useLayerStore's addLayer doesn't return ID directly. 
+      // Actually updateLayer can be called if we find it.
+      
+      clearPlacedGraphics()
       setLoadingState({ isLoading: false, prompt, error: null })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
