@@ -37,13 +37,8 @@ const POLL_INTERVAL_MS = 2000
 const createTask = async (imageBase64: string, prompt: string, maskBase64?: string): Promise<string> => {
   const url = `${RUNNINGHUB_BASE_URL}${RUNNINGHUB_ENDPOINT}`
   
-  // Ensure we have raw Base64 (strip data URI prefix)
-  const formatBase64 = (b64: string) => {
-    if (b64.includes(';base64,')) {
-      return b64.split(';base64,')[1]
-    }
-    return b64
-  }
+  // Ensure we have correct data URI format (RunningHub might need the header for decoding)
+  const formatBase64 = (b64: string) => b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`
 
   const imageUrls = [formatBase64(imageBase64)]
   if (maskBase64) {
@@ -67,18 +62,23 @@ const createTask = async (imageBase64: string, prompt: string, maskBase64?: stri
   })
 
   // Log raw response for debugging if it's not a success code 0
-  if (response.data.code !== 0) {
+  const code = response.data.code ?? response.data.errorCode
+  const msg = response.data.msg ?? response.data.message ?? response.data.errorMessage
+
+  if (code !== 0 && code !== undefined) {
     console.log('RunningHub Raw Error Response:', JSON.stringify(response.data, null, 2))
-    throw new Error(`RunningHub API error (${response.data.code}): ${response.data.msg || response.data.message || 'No message provided'}`)
+    throw new Error(`RunningHub API error (${code}): ${msg || 'No message provided'}`)
   }
 
-  if (!response.data.data?.taskId) {
+  const taskId = response.data.data?.taskId ?? response.data.taskId
+  if (!taskId) {
     console.log('RunningHub Missing TaskId Response:', JSON.stringify(response.data, null, 2))
     throw new Error('No taskId returned from RunningHub API')
   }
 
-  return response.data.data.taskId
+  return taskId
 }
+
 
 
 /**
@@ -96,12 +96,16 @@ const pollTaskStatus = async (taskId: string): Promise<string> => {
       timeout: 10000
     })
 
-    if (response.data.code !== 0) {
-      throw new Error(`RunningHub status error: ${response.data.msg || response.data.message}`)
+    const code = response.data.code ?? response.data.errorCode
+    const msg = response.data.msg ?? response.data.message ?? response.data.errorMessage
+
+    if (code !== 0 && code !== undefined) {
+      throw new Error(`RunningHub status error (${code}): ${msg || 'No message provided'}`)
     }
 
-    const taskData = response.data.data
+    const taskData = response.data.data ?? response.data
     const status = taskData?.status
+
 
     if (status === 'SUCCESS' || status === 'success') {
       const results = taskData?.results

@@ -91,22 +91,25 @@ function App() {
       const prompt = generatePrompt(placedGraphics)
       setLoadingState({ isLoading: true, prompt, error: null })
       
-      const baseLayer = layers.find(l => l.type === 'base')
-      if (!baseLayer?.imageDataUrl) {
-        throw new Error('No base image found')
-      }
+      // Rasterize current state to PNG (RunningHub needs raster, not SVG)
+      const canvas = document.createElement('canvas')
+      canvas.width = 800
+      canvas.height = 600
+      const imageBase64 = await flattenLayers(canvas)
 
-      // Convert image if needed
-      const imageBase64 = baseLayer.imageDataUrl
+      if (!imageBase64) {
+        throw new Error('Could not rasterize canvas')
+      }
 
       // Get mask if any
       const maskBase64 = placedGraphics.length > 0 ? generateMask(placedGraphics) : undefined
 
       const data = await sendToAI(
-        imageBase64.replace(/^data:image\/\w+;base64,/, ''),
+        imageBase64,
         prompt,
-        maskBase64?.replace(/^data:image\/\w+;base64,/, '')
+        maskBase64
       )
+
 
       if (!data.resultImageBase64) {
         throw new Error('No image returned from AI')
