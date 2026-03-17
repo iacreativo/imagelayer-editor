@@ -140,14 +140,16 @@ export const EditorCanvas = ({ placedGraphics, onUpdatePlacedGraphic, onCanvasCl
         onMouseLeave={handleMouseUp}
         draggable={false}
       >
-        <Rect
-          name="background"
-          x={-10000}
-          y={-10000}
-          width={20000}
-          height={20000}
-          fill="transparent"
-        />
+        <KonvaLayer>
+          <Rect
+            name="background"
+            x={-10000}
+            y={-10000}
+            width={20000}
+            height={20000}
+            fill="transparent"
+          />
+        </KonvaLayer>
         
         {sortedLayers.map((layer) => (
           layer.imageDataUrl && (
