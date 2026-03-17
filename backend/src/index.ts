@@ -37,19 +37,11 @@ interface ImageLayer {
 const images: ImageLayer[] = [
   {
     id: '1',
-    src: 'https://picsum.photos/400/300',
+    src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzQ5NmNjIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0id2hpdGUiPkltYWdlIExheWVyIEVkaXRvcjwvdGV4dD48L3N2Zz4=',
     x: 50,
     y: 50,
     width: 400,
     height: 300
-  },
-  {
-    id: '2',
-    src: 'https://picsum.photos/300/200',
-    x: 200,
-    y: 150,
-    width: 300,
-    height: 200
   }
 ]
 
