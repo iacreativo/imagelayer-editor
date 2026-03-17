@@ -303,7 +303,9 @@ export const useLayerStore = () => {
 
   return {
     layers,
+    setLayers,
     history,
+    setHistory,
     addLayer,
     removeLayer,
     updateLayer,

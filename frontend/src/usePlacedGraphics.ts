@@ -75,6 +75,7 @@ export const usePlacedGraphics = () => {
 
   return {
     placedGraphics,
+    setPlacedGraphics,
     addPlacedGraphic,
     updatePlacedGraphic,
     removePlacedGraphic,

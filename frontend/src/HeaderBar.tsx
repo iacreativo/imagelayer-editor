@@ -3,9 +3,12 @@ import { useLayerStore } from './useLayerStore'
 
 interface HeaderBarProps {
   onUploadImage: (base64: string) => void
+  onBack?: () => void
+  saveStatus?: 'saved' | 'saving' | 'unsaved'
+  lastSaved?: Date | null
 }
 
-export const HeaderBar = ({ onUploadImage }: HeaderBarProps) => {
+export const HeaderBar = ({ onUploadImage, onBack, saveStatus, lastSaved }: HeaderBarProps) => {
   const [isDragging, setIsDragging] = useState(false)
   const { layers } = useLayerStore()
 
@@ -42,9 +45,29 @@ export const HeaderBar = ({ onUploadImage }: HeaderBarProps) => {
     setIsDragging(false)
   }, [])
 
+  const getSaveStatusText = () => {
+    if (saveStatus === 'saving') return 'Guardando...'
+    if (saveStatus === 'unsaved') return 'Sin guardar'
+    if (lastSaved) {
+      return `Guardado ${lastSaved.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+    }
+    return 'Guardado'
+  }
+
+  const getSaveStatusColor = () => {
+    if (saveStatus === 'saving') return '#f59e0b'
+    if (saveStatus === 'unsaved') return '#e94560'
+    return '#4ade80'
+  }
+
   return (
     <div style={styles.container}>
       <div style={styles.left}>
+        {onBack && (
+          <button onClick={onBack} style={styles.backButton}>
+            ← Proyectos
+          </button>
+        )}
         <h1 style={styles.title}>Image Layer Editor</h1>
       </div>
 
@@ -63,8 +86,13 @@ export const HeaderBar = ({ onUploadImage }: HeaderBarProps) => {
       </div>
 
       <div style={styles.right}>
+        {saveStatus && (
+          <span style={{ ...styles.saveStatus, color: getSaveStatusColor() }}>
+            {getSaveStatusText()}
+          </span>
+        )}
         <label style={styles.uploadButton}>
-          📁 Upload Image
+          📁 Subir Imagen
           <input
             type="file"
             accept="image/*"
@@ -92,13 +120,28 @@ const styles: Record<string, React.CSSProperties> = {
   },
   left: {
     display: 'flex',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: '16px'
+  },
+  backButton: {
+    padding: '8px 14px',
+    background: 'transparent',
+    border: '1px solid #0f3460',
+    borderRadius: '6px',
+    color: '#aaa',
+    cursor: 'pointer',
+    fontSize: '13px',
+    transition: 'all 0.2s'
   },
   title: {
     margin: 0,
     fontSize: '16px',
     color: '#fff',
     fontWeight: 600
+  },
+  saveStatus: {
+    fontSize: '12px',
+    fontWeight: 500
   },
   center: {
     flex: 1,

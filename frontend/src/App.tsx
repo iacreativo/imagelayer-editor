@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Stage, Layer as KonvaLayer, Image as KonvaImage, Rect, Transformer, Group, Text, Rect as KonvaRect, Line, Circle } from 'react-konva'
+import { Stage, Layer as KonvaLayer, Image as KonvaImage, Rect, Transformer, Group, Text, Rect as KonvaRect, Line } from 'react-konva'
 import { useLayerStore, Layer } from './useLayerStore'
 import { PlacedGraphic } from './usePlacedGraphics'
 import { usePlacedGraphics } from './usePlacedGraphics'
@@ -11,12 +11,22 @@ import { MiniToolbar, Tool } from './MiniToolbar'
 import { HeaderBar } from './HeaderBar'
 import { sendToAI, generatePrompt, generateMask } from './services/editService'
 import { editingGraphics, SpatialPosition } from './data/editingGraphics'
+import { authService } from './services/authService'
+import { projectService, ProjectData } from './services/projectService'
+import { LoginScreen } from './LoginScreen'
+import { ProjectList } from './ProjectList'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+type AppView = 'login' | 'projects' | 'editor'
 
 function App() {
+  const [view, setView] = useState<AppView>('login')
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+
   const { 
     layers, 
+    setLayers,
     addLayer, 
     updateLayer,
     forceUpdateLayer,
@@ -25,11 +35,13 @@ function App() {
     flattenLayers,
     undo,
     clearHistory,
+    setHistory,
     history
   } = useLayerStore()
   
   const { 
     placedGraphics, 
+    setPlacedGraphics,
     addPlacedGraphic, 
     updatePlacedGraphic,
     removePlacedGraphic,
@@ -43,9 +55,96 @@ function App() {
     prompt: '',
     error: null as string | null
   })
-  
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stageContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      setView('projects')
+    }
+  }, [])
+
+  const handleLogin = () => {
+    setView('projects')
+  }
+
+  const handleLogout = () => {
+    authService.logout()
+    setView('login')
+    setCurrentProjectId(null)
+  }
+
+  const handleSelectProject = async (projectId: string) => {
+    try {
+      const project = await projectService.getProject(projectId)
+      const data = project.data as ProjectData
+      
+      if (data.layers && data.layers.length > 0) {
+        setLayers(data.layers.map((l: any) => ({
+          ...l,
+          createdAt: new Date(l.createdAt)
+        })))
+      }
+      
+      if (data.graphics) {
+        setPlacedGraphics(data.graphics)
+      }
+      
+      if (data.history) {
+        setHistory(data.history.map((h: any) => ({
+          ...h,
+          timestamp: new Date(h.timestamp)
+        })))
+      }
+      
+      setCurrentProjectId(projectId)
+      setView('editor')
+      setLastSaved(new Date())
+      setSaveStatus('saved')
+    } catch (err) {
+      console.error('Error loading project:', err)
+    }
+  }
+
+  const saveProject = useCallback(async () => {
+    if (!currentProjectId) return
+    
+    setSaveStatus('saving')
+    try {
+      const data: ProjectData = {
+        layers: layers as any[],
+        graphics: placedGraphics,
+        history: history as any[],
+        canvasSettings: { width: 800, height: 600, zoom: 1, position: { x: 0, y: 0 } }
+      }
+      
+      await projectService.updateProject(currentProjectId, { data })
+      setSaveStatus('saved')
+      setLastSaved(new Date())
+    } catch (err) {
+      console.error('Error saving project:', err)
+      setSaveStatus('unsaved')
+    }
+  }, [currentProjectId, layers, placedGraphics, history])
+
+  useEffect(() => {
+    if (view === 'editor' && currentProjectId) {
+      setSaveStatus('unsaved')
+    }
+  }, [layers, placedGraphics, history])
+
+  useEffect(() => {
+    if (view !== 'editor' || !currentProjectId) return
+    
+    const interval = setInterval(() => {
+      if (saveStatus === 'unsaved') {
+        saveProject()
+      }
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [view, currentProjectId, saveStatus, saveProject])
 
   const handlePlaceGraphic = useCallback((
     graphic: {
@@ -91,7 +190,6 @@ function App() {
       const prompt = generatePrompt(placedGraphics)
       setLoadingState({ isLoading: true, prompt, error: null })
       
-      // Rasterize current state to PNG (RunningHub needs raster, not SVG)
       const canvas = document.createElement('canvas')
       canvas.width = 800
       canvas.height = 600
@@ -101,27 +199,15 @@ function App() {
         throw new Error('Could not rasterize canvas')
       }
 
-      // Get mask if any
       const maskBase64 = placedGraphics.length > 0 ? generateMask(placedGraphics) : undefined
 
-      const data = await sendToAI(
-        imageBase64,
-        prompt,
-        maskBase64
-      )
-
+      const data = await sendToAI(imageBase64, prompt, maskBase64)
 
       if (!data.resultImageBase64) {
         throw new Error('No image returned from AI')
       }
 
-      // Add as new layer and clear annotations
-      const newLayerId = addLayer('ai_result', data.resultImageBase64)
-      
-      // Since addLayer might be async in terms of state update, we use effect or immediate follow up
-      // but useLayerStore's addLayer doesn't return ID directly. 
-      // Actually updateLayer can be called if we find it.
-      
+      addLayer('ai_result', data.resultImageBase64)
       clearPlacedGraphics()
       setLoadingState({ isLoading: false, prompt, error: null })
     } catch (error) {
@@ -134,9 +220,18 @@ function App() {
     undo()
   }, [undo])
 
-  const handleExport = useCallback(() => {
-    console.log('Exporting...')
-  }, [])
+  const handleExport = useCallback(async () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 800
+    canvas.height = 600
+    
+    const dataUrl = await flattenLayers(canvas)
+    
+    const link = document.createElement('a')
+    link.download = 'image-layers.png'
+    link.href = dataUrl
+    link.click()
+  }, [flattenLayers])
 
   const handleFlatten = useCallback(async () => {
     const canvas = document.createElement('canvas')
@@ -160,9 +255,44 @@ function App() {
     }
   }, [layers, forceUpdateLayer, addLayer])
 
+  const handleBackToProjects = () => {
+    if (saveStatus === 'unsaved') {
+      if (confirm('¿Guardar cambios antes de salir?')) {
+        saveProject().then(() => {
+          setView('projects')
+          setCurrentProjectId(null)
+        })
+      } else {
+        setView('projects')
+        setCurrentProjectId(null)
+      }
+    } else {
+      setView('projects')
+      setCurrentProjectId(null)
+    }
+  }
+
+  if (view === 'login') {
+    return <LoginScreen onLogin={handleLogin} />
+  }
+
+  if (view === 'projects') {
+    return (
+      <ProjectList 
+        onSelectProject={handleSelectProject} 
+        onLogout={handleLogout} 
+      />
+    )
+  }
+
   return (
     <div style={appStyles.container}>
-      <HeaderBar onUploadImage={handleUploadImage} />
+      <HeaderBar 
+        onUploadImage={handleUploadImage} 
+        onBack={handleBackToProjects}
+        saveStatus={saveStatus}
+        lastSaved={lastSaved}
+      />
       <div style={appStyles.main}>
         <div style={appStyles.leftPanel}>
           <Toolbar
@@ -402,52 +532,14 @@ const EditorCanvas = ({ layers, selectedLayerId, placedGraphics, onUpdatePlacedG
     return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturate}%) hue-rotate(${hueRotate}deg) blur(${blur}px) sepia(${sepia}%)`
   }
 
-  // Movable toolbar state
-  const [toolbarPos, setToolbarPos] = useState({ x: 20, y: 20 })
-  const [isDraggingToolbar, setIsDraggingToolbar] = useState(false)
-  const dragStartPos = useRef({ x: 0, y: 0 })
-
-  const handleToolbarMouseDown = (e: React.MouseEvent) => {
-    setIsDraggingToolbar(true)
-    dragStartPos.current = {
-      x: e.clientX - toolbarPos.x,
-      y: e.clientY - toolbarPos.y
-    }
-  }
-
-  useEffect(() => {
-    const handleMouseMoveGlobal = (e: MouseEvent) => {
-      if (isDraggingToolbar) {
-        setToolbarPos({
-          x: e.clientX - dragStartPos.current.x,
-          y: e.clientY - dragStartPos.current.y
-        })
-      }
-    }
-    const handleMouseUpGlobal = () => setIsDraggingToolbar(false)
-
-    if (isDraggingToolbar) {
-      window.addEventListener('mousemove', handleMouseMoveGlobal)
-      window.addEventListener('mouseup', handleMouseUpGlobal)
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMoveGlobal)
-      window.removeEventListener('mouseup', handleMouseUpGlobal)
-    }
-  }, [isDraggingToolbar])
-
   return (
-    <div ref={containerRef} style={{ flex: 1, width: '100%', overflow: 'hidden', background: '#1a1a2e', position: 'relative' }}>
-      <div 
-        onMouseDown={handleToolbarMouseDown}
-        style={{ 
-          position: 'absolute', 
-          top: toolbarPos.y, 
-          left: toolbarPos.x, 
-          zIndex: 100,
-          cursor: isDraggingToolbar ? 'grabbing' : 'grab'
-        }}
-      >
+    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#1a1a2e', position: 'relative' }}>
+      <div style={{ 
+        position: 'absolute', 
+        top: 10, 
+        left: 10, 
+        zIndex: 100 
+      }}>
         <MiniToolbar
           activeTool={activeTool}
           onToolChange={setActiveTool}
@@ -633,16 +725,10 @@ const URLImage = ({ src, layer }: URLImageProps) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
 
   useEffect(() => {
-    console.log('URLImage loading:', layer.name, 'src length:', src?.length)
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      console.log('URLImage loaded:', layer.name, img.width, img.height)
-      setImage(img)
-    }
-    img.onerror = (e) => {
-      console.log('URLImage error:', layer.name, e)
-    }
+    img.onload = () => setImage(img)
+    img.onerror = () => console.log('URLImage error:', layer.name)
     img.src = src
   }, [src, layer.name])
 
@@ -711,8 +797,7 @@ const appStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     background: '#1a1a2e',
-    overflow: 'hidden',
-    height: '100%'
+    overflow: 'hidden'
   },
   rightPanel: {
     background: '#16213e',
