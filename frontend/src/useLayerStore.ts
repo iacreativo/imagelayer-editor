@@ -46,7 +46,7 @@ const createBaseLayer = (): Layer => ({
   id: 'base',
   name: 'Base Image',
   type: 'base',
-  imageDataUrl: null,
+  imageDataUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI0MCIgZmlsbD0iIzY2NiI+VG9kbyBBcnRpY3VsbyBDYW52YXM8L3RleHQ+PC9zdmc+',
   opacity: 1,
   visible: true,
   blendMode: 'source-over',
